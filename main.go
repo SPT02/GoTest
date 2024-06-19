@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"net/http"
 	"time"
+	swaggerFiles "github.com/swaggo/files"
+    ginSwagger "github.com/swaggo/gin-swagger"
+    _ "GoTest/docs"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
@@ -40,14 +43,15 @@ func main() {
 
 	// Create a Gin router
 	r := gin.Default()
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	r.POST("/register", createUser)
+	r.POST("/login", loginUser)
 
 	// Apply AuthMiddleware to routes that require authentication
 	authGroup := r.Group("/user")
 	authGroup.Use(AuthMiddleware())
 
 	// Define routes with authentication
-	authGroup.POST("/register", createUser)
-	authGroup.POST("/login", loginUser)
 	authGroup.GET("/me", getCurrentUser)
 	authGroup.PATCH("/me", updateUser)
 	authGroup.POST("/accounting/transfer", transferCredit)
@@ -114,7 +118,16 @@ func parseJWTToken(tokenString string) (int, error) {
     return int(userID), nil
 }
 
-
+// @Summary Create a new user
+// @Description Create a new user with the provided details
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param user body User true "User object to be created"
+// @Success 201 {object} User
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /users [post]
 func createUser(c *gin.Context) {
 	var user models.User
 	if err := c.ShouldBindJSON(&user); err != nil {
@@ -158,7 +171,17 @@ func createUser(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
-
+// @Summary Login user
+// @Description Authenticate user with username and password
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param login body LoginCredentials true "User credentials for login"
+// @Success 200 {object} gin.H{"token":string,"user":User}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /login [post]
 func loginUser(c *gin.Context) {
 	var login models.User
 	if err := c.ShouldBindJSON(&login); err != nil {
@@ -210,6 +233,15 @@ func generateJWTToken(userID int) (string, error) {
 	return tokenString, nil
 }
 
+// @Summary Get current user ID
+// @Description Retrieves the ID of the currently authenticated user from JWT token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {integer} integer
+// @Failure 401 {object} ErrorResponse
+// @Router /user/me [get]
 func getCurrentUserId(c *gin.Context) (int, error) {
     // Extract user claims from JWT
     claims := jwt.ExtractClaims(c)
@@ -224,6 +256,15 @@ func getCurrentUserId(c *gin.Context) (int, error) {
     return userID, nil
 }
 
+// @Summary Get current user details
+// @Description Retrieves details of the currently authenticated user
+// @Tags users
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} User
+// @Failure 401 {object} ErrorResponse
+// @Router /user/me [get]
 func getCurrentUser(c *gin.Context) {
     // Extract userID from JWT claims
     userID, err := getCurrentUserId(c)
@@ -243,7 +284,18 @@ func getCurrentUser(c *gin.Context) {
     c.JSON(http.StatusOK, user)
 }
 
-
+// @Summary Update current user details
+// @Description Updates details (name, account_no) of the currently authenticated user
+// @Tags users
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param user body User true "User object containing updated details"
+// @Success 200 {object} User
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /user/me [patch]
 func updateUser(c *gin.Context) {
     // Extract userID from JWT claims
     userID, err := getCurrentUserId(c)
@@ -288,7 +340,18 @@ func updateUser(c *gin.Context) {
     c.Status(http.StatusOK)
 }
 
-
+// @Summary Transfer credit between user accounts
+// @Description Transfers a specified amount of credit from the authenticated user's account to another user's account
+// @Tags accounting
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param transferRequest body TransferRequest true "Transfer details"
+// @Success 200 {object} gin.H{"message": string}
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /user/accounting/transfer [post]
 func transferCredit(c *gin.Context) {
 	// Extract userID from JWT claims
 	userID, err := getCurrentUserId(c)
@@ -380,7 +443,19 @@ func transferCredit(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Credit transfer successful"})
 }
 
-
+// @Summary Get list of transfer history
+// @Description Retrieves a list of transfer history for the authenticated user within the specified date range
+// @Tags accounting
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param start_date query string false "Start date (YYYY-MM-DD) to filter transfers"
+// @Param end_date query string false "End date (YYYY-MM-DD) to filter transfers"
+// @Success 200 {array} TransferHistory
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /user/accounting/transfer-list [get]
 func getTransferList(c *gin.Context) {
 	// Extract userID from context
 	userID := c.MustGet("userID").(int)
